@@ -1,23 +1,25 @@
-# NightlyShutdown
+# 🐥 NightlyShutdown 🐥
 
-A simple PowerShell utility for anyone who falls asleep (or steps away) with their PC still running—whether you’re binge‑watching or simply forget to shut down. It gently prompts you, then gracefully closes apps and powers off if there’s no response.
+*A PowerShell utility to auto-shutdown your PC if left unattended.*
+
+For anyone who falls asleep (or steps away) with their PC still running—whether you're binge-watching or just forget to shut down. It gently prompts you, then gracefully closes apps and powers off if there's no response.
 
 ## How it works
 
-1. Displays a full‑screen neon‑style prompt (“Are you still there?”) with a 2‑minute timeout.  
-2. If unanswered, shows toast notifications (via BurntToast) and in order:  
+1. Displays a full-screen neon-style prompt (“Are you still there?”) with a 2-minute timeout.  
+2. If unanswered, shows toast notifications (via BurntToast) and, in order:
    - Minimizes all windows  
    - Mutes system audio  
-   - Attempts to close all user‑visible applications (twice for safety)  
+   - Attempts to close all user-visible applications (twice for safety)  
    - Shuts down the computer  
 
 Each step gives you time to intervene before the next action.
 
 ## Requirements
 
-- WINDOWS 8.1, 10, 11
-- PowerShell 4, 5, 5.1 
-- [BurntToast module](https://www.powershellgallery.com/packages/BurntToast) 
+- Windows 8.1, 10, or 11  
+- PowerShell 4.0–5.1  
+- [BurntToast module](https://www.powershellgallery.com/packages/BurntToast)  
 
 ## Installation
 
@@ -30,19 +32,21 @@ Each step gives you time to intervene before the next action.
    Install-Module -Name BurntToast -RequiredVersion 0.8.5
    ```
    
-## Scheduling
+## Scheduling (via Task Scheduler)
 
-Use Windows Task Scheduler to run it automatically at your chosen times (e.g. nightly or hourly):
+1. Open Task Scheduler.
+2. Create a new **Basic Task**.
+3. Set a **Trigger**: choose when it should run (e.g. daily at 1 AM).
+4. Set **Action**:
+   - **Program/script**: `powershell.exe`
+   - **Add arguments**: 
+     ```plaintext
+     -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File "C:\path\to\sleep.ps1"
+     ```
+5. Finish and confirm.
 
-1. Open **Task Scheduler**
-2. Create a new Basic Task:
-   - **Action**: Start a program  
-   - **Program/script**: `powershell.exe`  
-   - **Add arguments**: `-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File "C:\path\to\sleep.ps1"`  
-3. Set trigger(s) to the hour(s) you want it to run.
-
-That’s it—your PC will politely check for you, then shut down safely if you’ve already dozed off.
 
 ## License
 
-Unlicensed – do whatever you want.
+This project is released under [The Unlicense](https://unlicense.org/). Do whatever you want.
+
