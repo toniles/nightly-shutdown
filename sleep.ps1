@@ -1,114 +1,176 @@
-﻿Add-Type -AssemblyName System.Windows.Forms
-Import-Module BurntToast
+if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') {
+    Write-Warning 'Run PowerShell with -STA'
+    return
+}
+$ErrorActionPreference = 'Stop'
 
-function Ask-Awake($timeoutSeconds = 120) {
-    [System.Windows.Forms.Application]::EnableVisualStyles()
-    $script:result = $false
-
-    # Crear formulario
-    $form = New-Object System.Windows.Forms.Form
-    $form.FormBorderStyle = 'None'
-    $form.BackColor       = [System.Drawing.Color]::Black
-    $form.Size            = New-Object Drawing.Size(600,200)
-    $form.StartPosition   = "CenterScreen"
-    $form.Topmost         = $true
-    # Fuente general
-    $form.Font            = New-Object System.Drawing.Font('Bahnschrift',12,[System.Drawing.FontStyle]::Bold)
-
-    # Dibuja un borde neón (amarillo)
-    $form.Add_Paint({
-        param($sender, $e)
-        $pen = New-Object System.Drawing.Pen(
-            [System.Drawing.Color]::FromArgb(255,255,20), 5)
-        $e.Graphics.DrawRectangle($pen,0,0,
-            $form.Width-1, $form.Height-1)
-    })
-
-    # Margen superior para el header
-    $headerMarginTop = 30
-
-    # Etiqueta (header) – usa Bahnschrift y color amarillo
-    $lbl = New-Object System.Windows.Forms.Label
-    $lbl.Text      = "¿sigues ahí, coleguita?"
-    $lbl.AutoSize  = $true
-    $lbl.Font      = New-Object System.Drawing.Font('Bahnschrift',24,[System.Drawing.FontStyle]::Bold)
-    $lbl.ForeColor = [System.Drawing.Color]::FromArgb(255,255,20)
-    # Reubica tras conocer AutoSize, con margen superior configurable
-    $lbl.Location  = New-Object Drawing.Point(
-        (($form.ClientSize.Width - $lbl.PreferredWidth) / 2),
-        $headerMarginTop
-    )
-    $form.Controls.Add($lbl)
-
-    # Botón estilo neón (amarillo)
-    $btn = New-Object System.Windows.Forms.Button
-    $btn.Text       = "¡Sigo aquí!"
-    $btn.Size       = New-Object Drawing.Size(250,45)
-    $btn.FlatStyle  = 'Flat'
-    $btn.BackColor  = [System.Drawing.Color]::Black
-    $btn.ForeColor  = [System.Drawing.Color]::FromArgb(255,255,20)
-    $btn.Font       = New-Object System.Drawing.Font('Bahnschrift',14,[System.Drawing.FontStyle]::Bold)
-    $btn.FlatAppearance.BorderSize  = 2
-    $btn.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(255,255,20)
-    $btn.Location   = New-Object Drawing.Point(
-        (( $form.ClientSize.Width  - $btn.Width ) / 2),
-        (( $form.ClientSize.Height - $btn.Height) / 2 + 15))
-    # Efecto hover
-    $btn.Add_MouseEnter({
-        $btn.BackColor = [System.Drawing.Color]::FromArgb(255,255,20)
-        $btn.ForeColor = [System.Drawing.Color]::Black
-    })
-    $btn.Add_MouseLeave({
-        $btn.BackColor = [System.Drawing.Color]::Black
-        $btn.ForeColor = [System.Drawing.Color]::FromArgb(255,255,20)
-    })
-    $btn.Add_Click({
-        $timer.Stop()
-        $script:result = $true
-        $form.Close()
-    })
-    $form.Controls.Add($btn)
-
-    # Temporizador para cierre tras timeout
-    $timer = New-Object System.Windows.Forms.Timer
-    $timer.Interval = $timeoutSeconds * 1000
-    $timer.Add_Tick({
-        $timer.Stop()
-        $script:result = $false
-        $form.Close()
-    })
-    $timer.Start()
-
-    # Mostrar formulario
-    [void]$form.ShowDialog()
-    return $script:result
+$scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
+$logPath   = Join-Path $scriptDir 'script-debug.log'
+if (Test-Path $logPath) {
+    if ((Get-Item $logPath).Length -gt 2MB) { Clear-Content $logPath }
+} else {
+    New-Item -Path $logPath -ItemType File -Force | Out-Null
 }
 
-# Ejecutar pregunta y esperar respuesta
-$response = Ask-Awake -timeoutSeconds 120
+function Write-Log($message) {
+    "$((Get-Date).ToString('o')) $message" | Add-Content $logPath
+}
 
-if (-not $response) {
-    # 1) Minimizar ventanas
-    New-BurntToastNotification -Text "Minimizando ventanas..."
-    (New-Object -ComObject Shell.Application).MinimizeAll()
-    Start-Sleep -Seconds 120
+try {
+    try { Import-Module BurntToast -ErrorAction Stop } catch {}
 
-    # 2) Silenciar audio
-    New-BurntToastNotification -Text "Silenciando audio..."
-    (New-Object -ComObject WScript.Shell).SendKeys([char]173)
-    Start-Sleep -Seconds 120
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
 
-    # 3 & 4) Cerrar aplicaciones dos veces, excluyendo el script y explorer
-    for ($i = 1; $i -le 2; $i++) {
-        New-BurntToastNotification -Text "Cerrando aplicaciones..."
-        Get-Process |
-            Where-Object { $_.MainWindowHandle -ne 0 -and $_.Id -ne $PID -and $_.ProcessName -ne 'explorer' } |
-            Stop-Process -Force
-        Start-Sleep -Seconds 120
+    $script:cancelled = $false
+
+    function Get-PreferredFont {
+        param(
+            [int]$size,
+            [System.Drawing.FontStyle]$style
+        )
+        $names    = [System.Drawing.FontFamily]::Families | ForEach-Object Name
+        $fontName = if ($names -contains 'Bahnschrift') { 'Bahnschrift' } else { 'Segoe UI' }
+        return New-Object System.Drawing.Font($fontName, $size, $style)
     }
 
-    # 5) Apagar el PC
-    New-BurntToastNotification -Text "Apagando el PC. Buenas noches"
-    Start-Sleep -Seconds 5
-    Stop-Computer -Force
+    function Show-CancelForm {
+        $thread = [System.Threading.Thread]{
+            [System.Windows.Forms.Application]::EnableVisualStyles()
+            $form = New-Object System.Windows.Forms.Form
+            $form.FormBorderStyle = 'FixedDialog'
+            $form.Size            = New-Object Drawing.Size(300,100)
+            $area                 = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+            $form.Location        = New-Object Drawing.Point($area.Width-$form.Width-10, $area.Height-$form.Height-10)
+
+            $button = New-Object System.Windows.Forms.Button
+            $button.Text      = 'Cancel All'
+            $button.Dock      = 'Fill'
+            $button.Font      = Get-PreferredFont -size 12 -style Bold
+            $button.BackColor = [System.Drawing.Color]::FromArgb(200,50,50)
+            $button.ForeColor = [System.Drawing.Color]::White
+            $button.Add_Click({ $script:cancelled = $true; $form.Close() })
+            $form.Controls.Add($button)
+
+            [System.Windows.Forms.Application]::Run($form)
+            $form.Dispose()
+        }
+        $thread.SetApartmentState('STA')
+        $thread.IsBackground = $true
+        $thread.Start()
+    }
+
+    function Sleep-WithCancel {
+        param([int]$seconds)
+        for ($i = 0; $i -lt $seconds; $i++) {
+            Start-Sleep -Seconds 1
+            [System.Windows.Forms.Application]::DoEvents()
+            if ($script:cancelled) { break }
+        }
+    }
+
+    function Ask-Awake {
+        param([int]$timeout)
+        [System.Windows.Forms.Application]::EnableVisualStyles()
+        $response = $false
+
+        $form = New-Object System.Windows.Forms.Form
+        $form.FormBorderStyle = 'None'
+        $form.BackColor       = [System.Drawing.Color]::Black
+        $form.Size            = New-Object Drawing.Size(600,200)
+        $form.StartPosition   = 'CenterScreen'
+        $form.Topmost         = $true
+        $form.Font            = Get-PreferredFont -size 12 -style Bold
+
+        $form.Add_Paint({
+            param($s,$e)
+            $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(255,255,20),5)
+            $e.Graphics.DrawRectangle($pen,0,0,$form.Width-1,$form.Height-1)
+        })
+
+        $label = New-Object System.Windows.Forms.Label
+        $label.Text      = 'Are you still there?'
+        $label.AutoSize  = $true
+        $label.Font      = Get-PreferredFont -size 24 -style Bold
+        $label.ForeColor = [System.Drawing.Color]::FromArgb(255,255,20)
+        $label.Location  = New-Object Drawing.Point((($form.ClientSize.Width - $label.PreferredSize.Width)/2),30)
+        $form.Controls.Add($label)
+
+        $button = New-Object System.Windows.Forms.Button
+        $button.Text       = 'I am here'
+        $button.Size       = New-Object Drawing.Size(250,45)
+        $button.FlatStyle  = 'Flat'
+        $button.BackColor  = [System.Drawing.Color]::Black
+        $button.ForeColor  = [System.Drawing.Color]::FromArgb(255,255,20)
+        $button.Font       = Get-PreferredFont -size 14 -style Bold
+        $button.FlatAppearance.BorderSize  = 2
+        $button.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(255,255,20)
+        $button.Location   = New-Object Drawing.Point((($form.ClientSize.Width - $button.PreferredSize.Width)/2),(($form.ClientSize.Height - $button.PreferredSize.Height)/2+15))
+        $form.Controls.Add($button)
+
+        # -------- Suscripción corregida al evento Tick --------
+        $timer = New-Object System.Windows.Forms.Timer
+        $timer.Interval = $timeout * 1000
+        $timer.add_Tick({
+            $timer.Stop()
+            $form.Close()
+        })
+        $timer.Start()
+        # -------------------------------------------------------
+
+        $button.Add_Click({ $timer.Stop(); $response = $true; $form.Close() })
+
+        [void]$form.ShowDialog()
+        $timer.Dispose()
+        $form.Dispose()
+
+        return $response
+    }
+
+    if (-not (Ask-Awake -timeout 120)) {
+        Show-CancelForm
+
+        if (-not $script:cancelled) {
+            try {
+                (New-Object -ComObject Shell.Application).MinimizeAll()
+            } catch { Write-Log "Minimize error: $_" }
+            Sleep-WithCancel -seconds 120
+        }
+
+        if (-not $script:cancelled) {
+            try {
+                (New-Object -ComObject WScript.Shell).SendKeys([char]173)
+            } catch { Write-Log "Mute error: $_" }
+            Sleep-WithCancel -seconds 120
+        }
+
+        for ($round = 1; $round -le 2; $round++) {
+            if ($script:cancelled) { break }
+            Get-Process |
+                Where-Object { $_.MainWindowHandle -ne 0 -and $_.Id -ne $PID -and $_.ProcessName -ne 'explorer' } |
+                ForEach-Object {
+                    if ($script:cancelled) { return }
+                    try {
+                        Stop-Process -Id $_.Id -Force -ErrorAction Stop
+                    } catch {
+                        Write-Log "Close error: $($_.ProcessName): $_"
+                    }
+                    Sleep-WithCancel -seconds 1
+                }
+            Sleep-WithCancel -seconds 120
+        }
+
+        if (-not $script:cancelled) {
+            try {
+                Stop-Computer -Force
+            } catch { Write-Log "Shutdown error: $_" }
+        }
+
+        if ($script:cancelled) {
+            Write-Log 'Operation cancelled by user'
+        }
+    }
+}
+catch {
+    Write-Log "Fatal error: $($_.Exception.Message)"
 }
