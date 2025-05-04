@@ -23,7 +23,7 @@ Each step gives you time to intervene before the next action.
 
 1. Just install BurntToast (one‑time, probably already installed):
    ```powershell
-   
+   Install-Module BurntToast -Force -Scope CurrentUser
    ```
 ## Scheduling
 
