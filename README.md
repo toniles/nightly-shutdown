@@ -15,15 +15,15 @@ Each step gives you time to intervene before the next action.
 
 ## Requirements
 
-- Windows 10 or later  
-- PowerShell  
-- [BurntToast module](https://www.powershellgallery.com/packages/BurntToast)
+- WINDOWS 8.1, 10, 11
+- PowerShell 4, 5, 5.1 
+- [BurntToast module](https://www.powershellgallery.com/packages/BurntToast) 
 
 ## Installation
 
-1. Install BurntToast (one‑time, probably already installed):
+1. Just install BurntToast (one‑time, probably already installed):
    ```powershell
-   Install-Module BurntToast -Force -Scope CurrentUser
+   
    ```
 ## Scheduling
 
