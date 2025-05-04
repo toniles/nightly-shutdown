@@ -15,6 +15,8 @@ For anyone who falls asleep (or steps away) with their PC still running—whethe
 
 Each step gives you time to intervene before the next action.
 
+![image](https://github.com/user-attachments/assets/a2537e42-ec44-4f0f-8060-c59b4e794f68)
+
 ## Requirements
 
 - Windows 8.1, 10, or 11  
