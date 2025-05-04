@@ -25,6 +25,11 @@ Each step gives you time to intervene before the next action.
    ```powershell
    Install-Module BurntToast -Force -Scope CurrentUser
    ```
+   or
+      ```powershell
+   Install-Module -Name BurntToast -RequiredVersion 0.8.5
+   ```
+   
 ## Scheduling
 
 Use Windows Task Scheduler to run it automatically at your chosen times (e.g. nightly or hourly):
