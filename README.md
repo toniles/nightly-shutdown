@@ -37,15 +37,21 @@ Each step gives you time to intervene before the next action.
 ## Scheduling (via Task Scheduler)
 
 1. Open Task Scheduler.
-2. Create a new **Basic Task**.
+2. Create a new **Task**.
 3. Set a **Trigger**: choose when it should run (e.g. daily at 1 AM).
 4. Set **Action**:
-   - **Program/script**: `powershell.exe`
+   - **Program/script**: `powershell.exe` (or route)
    - **Add arguments**: 
      ```plaintext
      -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File "C:\path\to\sleep.ps1"
      ```
-5. Finish and confirm.
+
+
+![image](https://github.com/user-attachments/assets/f0449d2d-b42c-45c7-a43c-87483e54f1b1)
+
+![image](https://github.com/user-attachments/assets/57985ca8-f5da-4add-9067-36fcbfced1b9)
+
+![image](https://github.com/user-attachments/assets/d3237a72-2047-4336-b4b7-c79151e091ea)
 
 
 ## License
